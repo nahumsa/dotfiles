@@ -15,6 +15,8 @@ export ZSH="$HOME/.oh-my-zsh"
 # load a random theme each time oh-my-zsh is loaded, in which case,
 # to know which specific one was loaded, run: echo $RANDOM_THEME
 # See https://github.com/ohmyzsh/ohmyzsh/wiki/Themes
+# to install use:
+# git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k
 ZSH_THEME="powerlevel10k/powerlevel10k"
 
 # Uncomment to install Znap
@@ -101,7 +103,7 @@ export PATH=$PATH:$HOME/bin
 
 # Bind keys
 bindkey '^a' autosuggest-accept
-bindkey -s ^f "zellij-sessionizer ~\n"
+bindkey -s ^f "zellij-sessionizer ~/Documents\n"
 
 eval "$(zoxide init zsh)"
 

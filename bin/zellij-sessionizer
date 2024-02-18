@@ -9,23 +9,23 @@
 
 # Demo of the original: https://youtu.be/bdumjiHabhQ?t=269
 
-# 1. Place the script in your path
-# 2. Create an alias to call this script in your shells .rc config: 
-#    bindkey -s ^f "zellij_sessionizer\n"
-# 3. Update where you want to search:
-#    I'm using `fd` to perform the search inside a specific dir, you can use that or `find`
+paths=$@
 
-# Use an argument if passed
-if [[ $# -eq 1 ]]; then
-    selected_path=$1
+if [[ -z $paths ]]; then
+	echo "No paths were specified, usage: zellij-sessionizer [path1 path2 ...]"
+	exit 0
+fi
+
+if [ -x "$(command -v fd)"]; then
+	selected_path=$(fd . $paths --min-depth 1 --max-depth 1 --type d -not -path '*/\.*' | fzf)
 else
-    # If no argument was provided, interactively choose a directory
-    selected_path=$(fd . ~/dev --min-depth 1 --max-depth 2 --type d | fzf)
+	# defer to find if not
+	selected_path=$(find $paths -mindepth 1 -maxdepth 1 -type d -not -path '*/\.*' | fzf)
 fi
 
 # If no directory was selected, exit the script
 if [[ -z $selected_path ]]; then
-    exit 0
+	exit 0
 fi
 
 # Get the name of the selected directory, replacing "." with "_"
@@ -34,8 +34,8 @@ session_name=$(basename "$selected_path" | tr . _)
 # We're outside of zellij, so lets create a new session or attach to a new one.
 if [[ -z $ZELLIJ ]]; then
 	cd $selected_path
-  
-  # -c will make zellij to either create a new session or to attach into an existing one
+
+	# -c will make zellij to either create a new session or to attach into an existing one
 	zellij attach $session_name -c
 	exit 0
 fi
