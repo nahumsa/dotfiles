@@ -17,12 +17,22 @@ export ZSH="$HOME/.oh-my-zsh"
 # See https://github.com/ohmyzsh/ohmyzsh/wiki/Themes
 ZSH_THEME="powerlevel10k/powerlevel10k"
 
-# Plugins
+# Uncomment to install Znap
+# Download Znap, if it's not there yet.
+# [[ -r ~/Repos/znap/znap.zsh ]] ||
+#     git clone --depth 1 -- \
+#         https://github.com/marlonrichert/zsh-snap.git ~/zsh_repos/znap
+
+source ~/zsh_repos/znap/znap.zsh  # Start Znap
+
+# Install plugins
+znap source marlonrichert/zsh-autocomplete
+znap source zsh-users/zsh-autosuggestions
+znap source zsh-users/zsh-syntax-highlighting
+
+# Built-in oh-my-zsh Plugins
 plugins=(
 	git
-	zsh-autosuggestions
-	zsh-autocomplete
-  zsh-syntax-highlighting
   tmux
   docker
 )
