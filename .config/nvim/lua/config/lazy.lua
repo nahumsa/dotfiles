@@ -24,8 +24,6 @@ require("lazy").setup({
     { import = "lazyvim.plugins.extras.lang.json" },
     { import = "lazyvim.plugins.extras.lang.docker" },
 
-    -- Copilot
-    { import = "lazyvim.plugins.extras.coding.copilot" },
     -- Debugger
     { import = "lazyvim.plugins.extras.dap.core" },
 
