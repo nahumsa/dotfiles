@@ -331,6 +331,48 @@ return {
         end,
         desc = "harpoon to file 5",
       },
+      {
+        "<leader>hr1",
+        function()
+          require("harpoon"):list():replace_at(1)
+        end,
+        desc = "replace harpoon on file 1",
+      },
+      {
+        "<leader>hr2",
+        function()
+          require("harpoon"):list():replace_at(2)
+        end,
+        desc = "replace harpoon on file 2",
+      },
+      {
+        "<leader>hr3",
+        function()
+          require("harpoon"):list():replace_at(3)
+        end,
+        desc = "replace harpoon on file 3",
+      },
+      {
+        "<leader>hr4",
+        function()
+          require("harpoon"):list():replace_at(4)
+        end,
+        desc = "replace harpoon on file 4",
+      },
+      {
+        "<leader>hr5",
+        function()
+          require("harpoon"):list():replace_at(5)
+        end,
+        desc = "replace harpoon on file 5",
+      },
+      {
+        "<leader>hc",
+        function()
+          require("harpoon"):list():clear()
+        end,
+        desc = "clear harpoon list",
+      },
     },
   },
 }
