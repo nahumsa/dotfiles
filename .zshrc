@@ -47,6 +47,7 @@ source $ZSH/oh-my-zsh.sh
 alias nvim=~/nvim-linux64/bin/nvim
 alias tn="tmux new -s $(basename '$PWD')"
 alias zj="zellij"
+alias vactivate="source .venv/bin/activate"
 
 # NVM
 export NVM_DIR="/home/nahum/.nvm"
@@ -56,7 +57,7 @@ export NVM_DIR="/home/nahum/.nvm"
 # Add a function to activate pipenv when there is a .venv file inside 
 # a directory
 function cd() {
-  builtin z "$@"
+  builtin cd "$@"
 
   if [[ -z "$VIRTUAL_ENV" ]] ; then
     ## If env folder is found then activate the vitualenv
