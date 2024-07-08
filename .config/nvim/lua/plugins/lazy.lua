@@ -30,15 +30,5 @@ return {
     config = function()
       require("neogen").setup({ snippet_engine = "luasnip" })
     end,
-    keys = {
-      "<Leader>nc",
-      ":lua require('neogen').generate({ type = 'class' })<CR>",
-      { desc = "New Class documentation", noremap = true, silent = true },
-    },
-  },
-  {
-    "<Leader>nf",
-    ":lua require('neogen').generate({ type = 'func' })<CR>",
-    { desc = "New Class documentation", noremap = true, silent = true },
   },
 }
