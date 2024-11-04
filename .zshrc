@@ -44,7 +44,6 @@ source $ZSH/oh-my-zsh.sh
 # User configuration
 
 # Alias
-alias nvim=~/nvim-linux64/bin/nvim
 alias tn="tmux new -s $(basename '$PWD')"
 alias zj="zellij"
 alias vactivate="source .venv/bin/activate"
