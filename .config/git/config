@@ -26,3 +26,9 @@
 [rerere]
 	enabled = true           # Record and reuse conflict resolutions
 	autoupdate = true        # Apply stored conflict resolutions automatically
+
+[includeIf "gitdir:~/Documents/"]
+  path = ~/Documents/.gitconfig
+
+[includeIf "gitdir:~/Work/"]
+  path = ~/Work/.gitconfig
