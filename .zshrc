@@ -47,6 +47,7 @@ source $ZSH/oh-my-zsh.sh
 alias tn="tmux new -s $(basename '$PWD')"
 alias zj="zellij"
 alias vactivate="source .venv/bin/activate"
+alias duckdb="~/duckdb/build/release/duckdb"
 
 # NVM
 export NVM_DIR="/home/nahum/.nvm"
@@ -102,10 +103,12 @@ export PATH=$PATH:$HOME/bin
 # Bind keys
 bindkey '^a' autosuggest-accept
 bindkey -s ^f "zellij-sessionizer ~/Documents\n"
+bindkey -s ^w "zellij-sessionizer ~/Work/\n"
 
 eval "$(zoxide init zsh)"
+eval "$(uv generate-shell-completion zsh)"
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
-. "$HOME/.local/share/../bin/env"
+# . "$HOME/.local/share/../bin/env"
