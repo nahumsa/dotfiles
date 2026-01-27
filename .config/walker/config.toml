@@ -41,6 +41,10 @@ prefix = "@"
 provider = "websearch"
 
 [[providers.prefixes]]
+prefix = "!"
+provider = "todo"
+
+[[providers.prefixes]]
 prefix = "$"
 provider = "clipboard"
 
