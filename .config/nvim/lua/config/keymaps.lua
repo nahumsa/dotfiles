@@ -8,3 +8,5 @@ keymap(
   [[:%s/\<<C-r><C-w>\>/<C-r><C-w>/gI<Left><Left><Left>]],
   { desc = "replace word", remap = true }
 )
+keymap("n", "<Leader>xc", ":call setreg('+', expand('%:t:r') )<CR>",
+  { remap = true, desc = "Go to location in clipboard" })
