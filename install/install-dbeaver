@@ -5,4 +5,4 @@
 set -e
 
 echo "installing deaver"
-sudo yay -S dbeaver
+yay -S --noconfirm dbeaver

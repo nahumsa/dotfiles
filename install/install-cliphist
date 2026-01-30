@@ -2,5 +2,5 @@
 
 set -e
 
-echo "installing deaver"
-yay -S cliphist
+echo "installing cliphist"
+yay -S --noconfirm cliphist

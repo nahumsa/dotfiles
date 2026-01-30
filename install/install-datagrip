@@ -1,0 +1,6 @@
+#!/bin/bash
+
+set -e
+
+echo "installing datagrip"
+yay -S --noconfirm datagrip
