@@ -94,6 +94,11 @@ function z() {
   fi
 }
 
+function get_dbt_sql() {
+    dbt compile -t prd -s "$1" --no-use-colors | sed '1,/Compiled node .* is:/d' | wl-copy
+    echo "SQL for '$1' copied to clipboard!"
+}
+
 # Golang configs
 export PATH=$PATH:/usr/local/go/bin
 
