@@ -1,37 +1,23 @@
 return {
   "neovim/nvim-lspconfig",
-  dependencies = {
-    "jose-elias-alvarez/typescript.nvim",
-    init = function()
-      require("lazyvim.util").lsp.on_attach(function(_, buffer)
-          -- stylua: ignore
-          vim.keymap.set( "n", "<leader>co", "TypescriptOrganizeImports", { buffer = buffer, desc = "Organize Imports" })
-        vim.keymap.set("n", "<leader>cR", "TypescriptRenameFile", { desc = "Rename File", buffer = buffer })
-      end)
-    end,
-  },
+  -- 'init' runs on startup, making sure filetypes are registered early
+  init = function()
+    vim.filetype.add({
+      extension = {
+        jinja = "jinja",
+        jinja2 = "jinja",
+        j2 = "jinja",
+        py = "python",
+      },
+    })
+  end,
   ---@class PluginLspOpts
   opts = {
     ---@type lspconfig.options
     servers = {
-      tsserver = {},
-    },
-    ---@type table<string, fun(server:string, opts:_.lspconfig.options):boolean?>
-    setup = {
-      -- example to setup with typescript.nvim
-      tsserver = function(_, opts)
-        require("typescript").setup({ server = opts })
-        return true
-      end,
-    },
-  },
-  {
-    "neovim/nvim-lspconfig",
-    ---@class PluginLspOpts
-    opts = {
-      ---@type lspconfig.options
-      servers = {
-        pyright = {},
+      pyright = {},
+      jinja_lsp = {
+        filetypes = { "jinja", "rust", "python", "sql" },
       },
     },
   },
