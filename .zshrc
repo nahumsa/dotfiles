@@ -48,6 +48,7 @@ alias tn="tmux new -s $(basename '$PWD')"
 alias zj="zellij"
 alias vactivate="source .venv/bin/activate"
 alias duckdb="~/duckdb/build/release/duckdb"
+alias otodo="obsidian-todo"
 
 # NVM
 export NVM_DIR="/home/nahum/.nvm"
@@ -95,9 +96,10 @@ function z() {
 }
 
 function get_dbt_sql() {
-    dbt compile -t prd -s "$1" --no-use-colors | sed '1,/Compiled node .* is:/d' | wl-copy
+    dbt compile --no-use-colors -t prd -s "$1"  | sed '1,/Compiled node .* is:/d' | wl-copy
     echo "SQL for '$1' copied to clipboard!"
 }
+
 
 # Golang configs
 export PATH=$PATH:/usr/local/go/bin

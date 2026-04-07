@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: obsidian-todo [--file NOTE_PATH] ["task text"]
+
+Adds a markdown TODO item to an Obsidian note using the Obsidian CLI.
+If task text is omitted, opens nvim for interactive input.
+
+Options:
+  -f, --file NOTE_PATH   Target note path (default: "100-inbox/todo.md")
+  -h, --help             Show this help
+
+Environment:
+  OBSIDIAN_VAULT         Override vault name (default: n-life)
+EOF
+}
+
+todo_file="100-Inbox/TODO.md"
+vault_name="${OBSIDIAN_VAULT:-n-life}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -f|--file)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for $1" >&2
+        usage
+        exit 1
+      fi
+      todo_file="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+if [[ $# -eq 0 ]]; then
+  tmpfile="$(mktemp)"
+  cat > "${tmpfile}" <<'EOF'
+# Write your TODO below, save and quit.
+# Lines starting with # are ignored.
+EOF
+  nvim "${tmpfile}"
+  task_text="$(grep -v '^[[:space:]]*#' "${tmpfile}" | sed '/^[[:space:]]*$/d' | head -n 1 || true)"
+  rm -f "${tmpfile}"
+  if [[ -z "${task_text}" ]]; then
+    echo "No task text provided." >&2
+    exit 1
+  fi
+else
+  task_text="$*"
+fi
+
+content="- [ ] ${task_text}"
+
+file_check="$(obsidian file "path=${todo_file}" "vault=${vault_name}" 2>&1 || true)"
+if echo "${file_check}" | grep -Eiq 'not found|^Error:'; then
+  obsidian create "path=${todo_file}" "vault=${vault_name}" "content=# Todo\n" >/dev/null 2>&1 || true
+fi
+
+append_out="$(obsidian append "path=${todo_file}" "content=${content}" "vault=${vault_name}" 2>&1 || true)"
+if echo "${append_out}" | grep -Eiq 'not found|^Error:'; then
+  echo "${append_out}" >&2
+  exit 1
+fi
+
+echo "Added TODO to '${todo_file}' (vault: ${vault_name}): ${task_text}"
