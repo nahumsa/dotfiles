@@ -3,12 +3,13 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: obsidian-todo [--file NOTE_PATH] ["task text"]
+Usage: obsidian-todo [--clear] [--file NOTE_PATH] ["task text"]
 
-Adds a markdown TODO item to an Obsidian note using the Obsidian CLI.
+Adds a markdown TODO item to an Obsidian note.
 If task text is omitted, opens nvim for interactive input.
 
 Options:
+  -c, --clear            Remove completed tasks (- [x]) from the note
   -f, --file NOTE_PATH   Target note path (default: "100-inbox/todo.md")
   -h, --help             Show this help
 
@@ -17,11 +18,64 @@ Environment:
 EOF
 }
 
+log() {
+  printf '[obsidian-todo] %s\n' "$*" >&2
+}
+
 todo_file="100-Inbox/TODO.md"
 vault_name="${OBSIDIAN_VAULT:-n-life}"
+clear_done=false
+
+resolve_vault_path() {
+  local config_path resolved_path
+  config_path="${XDG_CONFIG_HOME:-${HOME}/.config}/obsidian/obsidian.json"
+
+  log "Resolving vault path for '${vault_name}'"
+
+  if [[ ! -f "${config_path}" ]]; then
+    echo "Could not resolve vault path for '${vault_name}'; missing ${config_path}." >&2
+    exit 1
+  fi
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "Could not resolve vault path for '${vault_name}'; missing required command: jq" >&2
+    exit 1
+  fi
+
+  resolved_path="$(jq -r --arg name "${vault_name}" '
+    (.vaults // {})
+    | to_entries
+    | map(.value)
+    | map(select(.path? and ((.path == $name) or ((.path | split("/") | last) == $name))))
+    | first
+    | .path // empty
+  ' "${config_path}" 2>/dev/null || true)"
+
+  if [[ -z "${resolved_path}" || ! -d "${resolved_path}" ]]; then
+    echo "Could not resolve vault path for '${vault_name}'." >&2
+    exit 1
+  fi
+
+  log "Resolved vault path: ${resolved_path}"
+  printf '%s\n' "${resolved_path}"
+}
+
+ensure_todo_file() {
+  local todo_path="$1"
+  mkdir -p "$(dirname "${todo_path}")"
+
+  if [[ ! -f "${todo_path}" ]]; then
+    log "TODO note not found; creating ${todo_path}"
+    printf '# Todo\n\n' > "${todo_path}"
+  fi
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    -c|--clear)
+      clear_done=true
+      shift
+      ;;
     -f|--file)
       if [[ $# -lt 2 ]]; then
         echo "Missing value for $1" >&2
@@ -50,11 +104,39 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+vault_path="$(resolve_vault_path)"
+todo_path="${vault_path%/}/${todo_file}"
+
+if ${clear_done}; then
+  ensure_todo_file "${todo_path}"
+  log "Clearing completed tasks from ${todo_path}"
+
+  if [[ -f "${todo_path}" ]]; then
+    removed_count="$(grep -Eic '^[[:space:]]*[-*+][[:space:]]+\[[xX]\]([[:space:]].*)?$' "${todo_path}" || true)"
+    if [[ "${removed_count}" -gt 0 ]]; then
+      log "Removing ${removed_count} completed task(s)"
+      tmpfile="$(mktemp)"
+      sed -E '/^[[:space:]]*[-*+][[:space:]]+\[[xX]\]([[:space:]].*)?$/d' "${todo_path}" > "${tmpfile}"
+      mv "${tmpfile}" "${todo_path}"
+    else
+      log "No completed tasks found"
+    fi
+  else
+    log "TODO note path does not exist on disk: ${todo_path}"
+    removed_count=0
+  fi
+
+  echo "Cleared ${removed_count} completed task(s) from '${todo_file}' (vault: ${vault_name})."
+
+  if [[ $# -eq 0 ]]; then
+    exit 0
+  fi
+fi
+
 if [[ $# -eq 0 ]]; then
+  log "No task text provided; opening nvim for input"
   tmpfile="$(mktemp)"
   cat > "${tmpfile}" <<'EOF'
-# Write your TODO below, save and quit.
-# Lines starting with # are ignored.
 EOF
   nvim "${tmpfile}"
   task_text="$(grep -v '^[[:space:]]*#' "${tmpfile}" | sed '/^[[:space:]]*$/d' | head -n 1 || true)"
@@ -64,20 +146,14 @@ EOF
     exit 1
   fi
 else
+  log "Using task text from command arguments"
   task_text="$*"
 fi
 
 content="- [ ] ${task_text}"
 
-file_check="$(obsidian file "path=${todo_file}" "vault=${vault_name}" 2>&1 || true)"
-if echo "${file_check}" | grep -Eiq 'not found|^Error:'; then
-  obsidian create "path=${todo_file}" "vault=${vault_name}" "content=# Todo\n" >/dev/null 2>&1 || true
-fi
-
-append_out="$(obsidian append "path=${todo_file}" "content=${content}" "vault=${vault_name}" 2>&1 || true)"
-if echo "${append_out}" | grep -Eiq 'not found|^Error:'; then
-  echo "${append_out}" >&2
-  exit 1
-fi
+ensure_todo_file "${todo_path}"
+log "Appending TODO to ${todo_path}"
+printf '%s\n' "${content}" >> "${todo_path}"
 
 echo "Added TODO to '${todo_file}' (vault: ${vault_name}): ${task_text}"
