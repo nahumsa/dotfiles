@@ -106,6 +106,7 @@ export PATH=$PATH:/usr/local/go/bin
 
 # zellij-sessionizer
 export PATH=$PATH:$HOME/bin
+export PATH=$HOME/.cargo/bin:$PATH
 
 # Bind keys
 bindkey '^a' autosuggest-accept
