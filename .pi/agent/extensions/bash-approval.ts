@@ -1,4 +1,11 @@
-import { isToolCallEventType, type ExtensionAPI, type ExtensionContext } from "@mariozechner/pi-coding-agent";
+import {
+  isToolCallEventType,
+  type ExtensionAPI,
+  type ExtensionContext,
+  type SessionStartEvent,
+  type ToolCallEvent,
+  type UserBashEvent,
+} from "@mariozechner/pi-coding-agent";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
@@ -26,15 +33,31 @@ function setStatus(ctx: ExtensionContext, enabled: boolean): void {
   ctx.ui.setStatus("bash-approval", enabled ? "bash approval: on" : "bash approval: off");
 }
 
-async function confirmBash(ctx: ExtensionContext, command: string): Promise<boolean> {
-  if (!ctx.hasUI) return false;
-  return await ctx.ui.confirm("Approve bash command?", command);
+type BashApprovalDecision =
+  | { action: "approve" }
+  | { action: "deny" }
+  | { action: "suggest"; command: string };
+
+async function confirmBash(ctx: ExtensionContext, command: string): Promise<BashApprovalDecision> {
+  if (!ctx.hasUI) return { action: "deny" };
+
+  const choice = await ctx.ui.select(`Approve bash command?\n${command}`, ["Approve", "Suggest replacement", "Deny"]);
+
+  if (choice === "Approve") return { action: "approve" };
+
+  if (choice === "Suggest replacement") {
+    const suggestion = await ctx.ui.input("Suggest bash command", command);
+    const trimmed = suggestion?.trim();
+    if (trimmed) return { action: "suggest", command: trimmed };
+  }
+
+  return { action: "deny" };
 }
 
 export default function (pi: ExtensionAPI) {
   const state = loadState();
 
-  pi.on("session_start", async (_event, ctx: ExtensionContext) => {
+  pi.on("session_start", async (_event: SessionStartEvent, ctx: ExtensionContext) => {
     setStatus(ctx, state.enabled);
   });
 
@@ -59,20 +82,37 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  pi.on("tool_call", async (event, ctx: ExtensionContext) => {
+  pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
     if (!state.enabled || !isToolCallEventType("bash", event)) return undefined;
 
-    const ok = await confirmBash(ctx, event.input.command);
-    if (!ok) return { block: true, reason: "Bash command blocked by approval gate" };
+    const decision = await confirmBash(ctx, event.input.command);
+    if (decision.action === "approve") return undefined;
+    if (decision.action === "suggest") {
+      return {
+        block: true,
+        reason: `Bash command blocked by approval gate. Continue the conversation and follow the user's suggestion instead of stopping. User suggestion: ${decision.command}`,
+      };
+    }
 
-    return undefined;
+    return { block: true, reason: "Bash command blocked by approval gate" };
   });
 
-  pi.on("user_bash", async (event, ctx: ExtensionContext) => {
+  pi.on("user_bash", async (event: UserBashEvent, ctx: ExtensionContext) => {
     if (!state.enabled) return undefined;
 
-    const ok = await confirmBash(ctx, event.command);
-    if (ok) return undefined;
+    const decision = await confirmBash(ctx, event.command);
+    if (decision.action === "approve") return undefined;
+
+    if (decision.action === "suggest") {
+      return {
+        result: {
+          output: `Bash command blocked by approval gate. Continue the conversation and follow the user's suggestion instead of stopping. User suggestion: ${decision.command}`,
+          exitCode: 1,
+          cancelled: false,
+          truncated: false,
+        },
+      };
+    }
 
     return {
       result: {
