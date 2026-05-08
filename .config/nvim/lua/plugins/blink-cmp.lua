@@ -14,6 +14,7 @@ return {
         preset = "default",
         ["<Tab>"] = { "select_next", "show", "snippet_forward", "fallback" },
         ["<S-Tab>"] = { "select_prev", "snippet_backward", "fallback" },
+        ["<CR>"] = { "accept", "fallback" },
       })
 
       opts.sources = opts.sources or {}

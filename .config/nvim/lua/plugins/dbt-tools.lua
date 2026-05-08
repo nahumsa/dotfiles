@@ -9,6 +9,7 @@ return {
         tests = {
           enabled = true,
           hover_keymap = "K",
+          warn_on_missing_table_tests = true,
         },
       })
     end,

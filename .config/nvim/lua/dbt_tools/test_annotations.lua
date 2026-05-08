@@ -107,11 +107,19 @@ local function parse_model_tests_from_yaml(path, model_name)
   return result
 end
 
+local function is_model_file(file, root)
+  return file:match("%.sql$")
+    and vim.startswith(file, root)
+    and file:match("/models/") ~= nil
+    and file:match("/target/") == nil
+    and file:match("/dbt_packages/") == nil
+end
+
 local function find_model_tests(bufnr)
   local dbt = require("dbt_tools")
   local file = vim.api.nvim_buf_get_name(bufnr)
   local root = dbt.project_root(vim.fn.fnamemodify(file, ":h"))
-  if not root then
+  if not root or not is_model_file(file, root) then
     return nil
   end
 
@@ -139,6 +147,15 @@ local function find_model_tests(bufnr)
       return tests
     end
   end
+
+  if config.warn_on_missing_table_tests ~= false then
+    return {
+      model_name = model_name,
+      model_tests = {},
+      column_tests = {},
+      missing_table_tests = true,
+    }
+  end
 end
 
 local function format_tests(tests)
@@ -157,7 +174,34 @@ local function format_tests(tests)
   return lines
 end
 
+local function render_missing_table_tests_warning(bufnr, tests)
+  local message = "No dbt tests found for table '" .. tests.model_name .. "'"
+
+  vim.diagnostic.set(ns, bufnr, {
+    {
+      lnum = 0,
+      col = 0,
+      severity = vim.diagnostic.severity.WARN,
+      source = "dbt-tools",
+      message = message,
+    },
+  })
+
+  vim.api.nvim_buf_set_extmark(bufnr, ns, 0, 0, {
+    virt_lines = {
+      { { " ⚠ " .. message .. " ", "DiagnosticWarn" } },
+      { { "", "Comment" } },
+    },
+    virt_lines_above = true,
+  })
+end
+
 local function render_header(bufnr, tests)
+  if tests.missing_table_tests then
+    render_missing_table_tests_warning(bufnr, tests)
+    return
+  end
+
   local lines = format_tests(tests)
   if #lines == 0 then
     return
@@ -268,6 +312,7 @@ end
 function M.refresh(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+  vim.diagnostic.reset(ns, bufnr)
   state[bufnr] = nil
 
   if vim.bo[bufnr].filetype ~= "sql" then
@@ -286,7 +331,9 @@ function M.refresh(bufnr)
 
   state[bufnr] = tests
   render_header(bufnr, tests)
-  highlight_tested_columns(bufnr, tests)
+  if not tests.missing_table_tests then
+    highlight_tested_columns(bufnr, tests)
+  end
 
   vim.keymap.set("n", config.hover_keymap or "K", function()
     show_column_tests(bufnr)
