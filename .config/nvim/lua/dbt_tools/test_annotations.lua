@@ -229,21 +229,179 @@ local function tested_columns(tests)
   return columns
 end
 
+local function strip_sql_comments_and_strings(lines)
+  local result = {}
+  local in_block_comment = false
+  local in_string
+
+  for _, line in ipairs(lines) do
+    local chars = {}
+    local i = 1
+
+    while i <= #line do
+      local two = line:sub(i, i + 1)
+      local char = line:sub(i, i)
+
+      if in_block_comment then
+        if two == "*/" then
+          chars[i] = " "
+          chars[i + 1] = " "
+          i = i + 2
+          in_block_comment = false
+        else
+          chars[i] = " "
+          i = i + 1
+        end
+      elseif in_string then
+        chars[i] = " "
+        if char == in_string then
+          if line:sub(i + 1, i + 1) == in_string then
+            chars[i + 1] = " "
+            i = i + 2
+          else
+            in_string = nil
+            i = i + 1
+          end
+        else
+          i = i + 1
+        end
+      elseif two == "--" then
+        for j = i, #line do
+          chars[j] = " "
+        end
+        break
+      elseif two == "/*" then
+        chars[i] = " "
+        chars[i + 1] = " "
+        i = i + 2
+        in_block_comment = true
+      elseif char == "'" or char == '"' or char == "`" then
+        chars[i] = " "
+        in_string = char
+        i = i + 1
+      else
+        chars[i] = char
+        i = i + 1
+      end
+    end
+
+    table.insert(result, table.concat(chars))
+  end
+
+  return result
+end
+
+local function previous_significant(code_lines, line_idx, col)
+  for row = line_idx, 1, -1 do
+    local line = code_lines[row]
+    local start_col = row == line_idx and col - 1 or #line
+    for i = start_col, 1, -1 do
+      local char = line:sub(i, i)
+      if not char:match("%s") then
+        local word = line:sub(1, i):match("([%w_]+)$")
+        return char, word and word:lower() or nil
+      end
+    end
+  end
+end
+
+local function next_significant(code_lines, line_idx, col)
+  for row = line_idx, #code_lines do
+    local line = code_lines[row]
+    local start_col = row == line_idx and col + 1 or 1
+    for i = start_col, #line do
+      local char = line:sub(i, i)
+      if not char:match("%s") then
+        local word = line:sub(i):match("^([%w_]+)")
+        return char, word and word:lower() or nil
+      end
+    end
+  end
+end
+
+local function is_in_select_projection(code_lines, line_idx, col)
+  local depth = 0
+  local select_depths = {}
+
+  for row = 1, line_idx do
+    local line = code_lines[row]
+    local limit = row == line_idx and col - 1 or #line
+    local i = 1
+
+    while i <= limit do
+      local char = line:sub(i, i)
+
+      if char == "(" then
+        depth = depth + 1
+        i = i + 1
+      elseif char == ")" then
+        depth = math.max(0, depth - 1)
+        while #select_depths > 0 and select_depths[#select_depths] > depth do
+          table.remove(select_depths)
+        end
+        i = i + 1
+      else
+        local word = line:sub(i, limit):match("^([%w_]+)")
+        if word then
+          word = word:lower()
+          if word == "select" then
+            table.insert(select_depths, depth)
+          elseif word == "from" and select_depths[#select_depths] == depth then
+            table.remove(select_depths)
+          end
+          i = i + #word
+        else
+          i = i + 1
+        end
+      end
+    end
+  end
+
+  return #select_depths > 0
+end
+
+local function star_is_select_wildcard(code_lines, line_idx, col)
+  if not is_in_select_projection(code_lines, line_idx, col) then
+    return false
+  end
+
+  local prev_char, prev_word = previous_significant(code_lines, line_idx, col)
+  local next_char, next_word = next_significant(code_lines, line_idx, col)
+
+  local valid_prev = prev_char == "."
+    or prev_char == ","
+    or prev_word == "select"
+    or prev_word == "distinct"
+    or prev_word == "all"
+  local valid_next = next_char == "," or next_word == "from" or next_word == "except" or next_word == "replace"
+
+  return valid_prev and valid_next
+end
+
 local function annotate_star_selects(bufnr, lines, columns)
   if #columns == 0 then
     return
   end
 
   local text = " dbt tested: " .. table.concat(columns, ", ")
-  for line_idx, line in ipairs(lines) do
-    local trimmed = trim(line)
-    local star_from, star_to = line:find("%*")
+  local code_lines = strip_sql_comments_and_strings(lines)
 
-    if star_to and not trimmed:match("^%-%-") then
-      vim.api.nvim_buf_set_extmark(bufnr, ns, line_idx - 1, star_to, {
-        virt_text = { { text, "Comment" } },
-        virt_text_pos = "inline",
-      })
+  for line_idx, line in ipairs(code_lines) do
+    local start = 1
+    while true do
+      local star_from, star_to = line:find("%*", start)
+      if not star_from then
+        break
+      end
+
+      if star_is_select_wildcard(code_lines, line_idx, star_from) then
+        vim.api.nvim_buf_set_extmark(bufnr, ns, line_idx - 1, star_to, {
+          virt_text = { { text, "Comment" } },
+          virt_text_pos = "inline",
+        })
+      end
+
+      start = star_to + 1
     end
   end
 end
