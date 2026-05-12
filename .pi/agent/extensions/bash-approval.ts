@@ -10,7 +10,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 
-type State = { enabled: boolean; allowList: string[] };
+type State = { enabled: boolean; strict: boolean; allowList: string[] };
 
 const stateFile = join(homedir(), ".pi", "agent", "bash-approval.json");
 
@@ -19,10 +19,11 @@ function loadState(): State {
     const parsed = JSON.parse(readFileSync(stateFile, "utf8")) as Partial<State>;
     return {
       enabled: parsed.enabled !== false,
+      strict: parsed.strict === true,
       allowList: Array.isArray(parsed.allowList) ? parsed.allowList.filter((command): command is string => typeof command === "string") : [],
     };
   } catch {
-    return { enabled: true, allowList: [] };
+    return { enabled: true, strict: false, allowList: [] };
   }
 }
 
@@ -31,9 +32,10 @@ function saveState(state: State) {
   writeFileSync(stateFile, JSON.stringify(state, null, "\t") + "\n", "utf8");
 }
 
-function setStatus(ctx: ExtensionContext, enabled: boolean): void {
+function setStatus(ctx: ExtensionContext, state: State): void {
   if (!ctx.hasUI) return;
-  ctx.ui.setStatus("bash-approval", enabled ? "bash approval: on" : "bash approval: off");
+  const mode = state.strict ? "strict" : "allow-list";
+  ctx.ui.setStatus("bash-approval", state.enabled ? `bash approval: on (${mode})` : "bash approval: off");
 }
 
 function getFirstShellWord(command: string): string {
@@ -172,11 +174,11 @@ export default function (pi: ExtensionAPI) {
   const state = loadState();
 
   pi.on("session_start", async (_event: SessionStartEvent, ctx: ExtensionContext) => {
-    setStatus(ctx, state.enabled);
+    setStatus(ctx, state);
   });
 
   pi.registerCommand("bash-approval", {
-    description: "Turn bash command approval on/off and manage allowed commands: /bash-approval [on|off|toggle|status|allow ...]",
+    description: "Turn bash command approval on/off and manage allowed commands: /bash-approval [on|off|toggle|status|strict|allow ...]",
     handler: async (args, ctx: ExtensionContext) => {
       const rawArgs = (args || "toggle").trim();
       const [action = "toggle", allowAction, ...rest] = rawArgs.split(/\s+/);
@@ -188,6 +190,18 @@ export default function (pi: ExtensionAPI) {
         state.enabled = false;
       } else if (["toggle", ""].includes(normalizedAction)) {
         state.enabled = !state.enabled;
+      } else if (["strict", "strict-mode"].includes(normalizedAction)) {
+        const strictAction = (allowAction || "toggle").toLowerCase();
+        if (["on", "enable", "enabled", "yes", "true"].includes(strictAction)) {
+          state.strict = true;
+        } else if (["off", "disable", "disabled", "no", "false"].includes(strictAction)) {
+          state.strict = false;
+        } else if (["toggle", ""].includes(strictAction)) {
+          state.strict = !state.strict;
+        } else if (!["status", "show"].includes(strictAction)) {
+          ctx.ui.notify("Usage: /bash-approval strict [on|off|toggle|status]", "warning");
+          return;
+        }
       } else if (["allow", "allowlist", "allow-list"].includes(normalizedAction)) {
         const normalizedAllowAction = (allowAction || "list").toLowerCase();
         const command = rest.join(" ").trim();
@@ -230,18 +244,18 @@ export default function (pi: ExtensionAPI) {
         ctx.ui.notify("Usage: /bash-approval allow [list|add <command>|remove <command>|clear]", "warning");
         return;
       } else if (!["status", "show"].includes(normalizedAction)) {
-        ctx.ui.notify("Usage: /bash-approval [on|off|toggle|status|allow [list|add <command>|remove <command>|clear]]", "warning");
+        ctx.ui.notify("Usage: /bash-approval [on|off|toggle|status|strict [on|off|toggle|status]|allow [list|add <command>|remove <command>|clear]]", "warning");
         return;
       }
       saveState(state);
-      setStatus(ctx, state.enabled);
-      ctx.ui.notify(`Bash approval is ${state.enabled ? "ON" : "OFF"}. ${state.allowList.length} allowed command(s).`, "info");
+      setStatus(ctx, state);
+      ctx.ui.notify(`Bash approval is ${state.enabled ? "ON" : "OFF"}. Strict mode is ${state.strict ? "ON" : "OFF"}. ${state.allowList.length} allowed command(s).`, "info");
     },
   });
 
   pi.on("tool_call", async (event: ToolCallEvent, ctx: ExtensionContext) => {
     if (!state.enabled || !isToolCallEventType("bash", event)) return undefined;
-    if (isAllowedCommand(event.input.command, state.allowList)) return undefined;
+    if (!state.strict && isAllowedCommand(event.input.command, state.allowList)) return undefined;
 
     const decision = await confirmBash(ctx, event.input.command);
     if (decision.action === "approve") return undefined;
@@ -257,7 +271,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("user_bash", async (event: UserBashEvent, ctx: ExtensionContext) => {
     if (!state.enabled) return undefined;
-    if (isAllowedCommand(event.command, state.allowList)) return undefined;
+    if (!state.strict && isAllowedCommand(event.command, state.allowList)) return undefined;
 
     const decision = await confirmBash(ctx, event.command);
     if (decision.action === "approve") return undefined;
