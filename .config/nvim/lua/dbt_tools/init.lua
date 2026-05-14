@@ -128,43 +128,6 @@ function M.goto_ref()
   end
 end
 
-function M.ref_completion_source()
-  local source = {}
-
-  function source:is_available()
-    return vim.bo.filetype == "sql" and M.project_root() ~= nil
-  end
-
-  function source:get_keyword_pattern()
-    return [[\k*]]
-  end
-
-  function source:complete(_, callback)
-    local line = vim.api.nvim_get_current_line()
-    local col = vim.api.nvim_win_get_cursor(0)[2]
-    local before_cursor = line:sub(1, col)
-
-    if not before_cursor:match("ref%s*%(%s*['\"][%w_]*$") then
-      callback({ items = {}, isIncomplete = false })
-      return
-    end
-
-    local items = vim.tbl_map(function(model)
-      return {
-        label = model.name,
-        insertText = model.name,
-        kind = require("cmp").lsp.CompletionItemKind.File,
-        detail = "dbt model",
-        documentation = vim.fn.fnamemodify(model.path, ":~:."),
-      }
-    end, M.models())
-
-    callback({ items = items, isIncomplete = false })
-  end
-
-  return source
-end
-
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 
