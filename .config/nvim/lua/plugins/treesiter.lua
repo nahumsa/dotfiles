@@ -2,6 +2,11 @@ return {
   {
     "nvim-treesitter/nvim-treesitter",
     opts = {
+      -- Treesitter SQL indentation currently leaves new lines at column 0.
+      -- Disable it so Neovim's built-in SQL indent/autoindent is used instead.
+      indent = {
+        disable = { "sql" },
+      },
       ensure_installed = {
         "bash",
         "html",
