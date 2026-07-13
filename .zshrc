@@ -49,6 +49,7 @@ alias zj="zellij"
 alias vactivate="source .venv/bin/activate"
 alias duckdb="~/duckdb/build/release/duckdb"
 alias otodo="obsidian-todo"
+alias love="SDL_VIDEODRIVER=x11 ~/Downloads/love-11.5-x86_64.AppImage"
 
 # NVM
 export NVM_DIR="/home/nahum/.nvm"
