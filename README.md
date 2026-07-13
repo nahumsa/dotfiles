@@ -55,3 +55,16 @@ To run every installer without confirmation, use:
 ```
 
 `yay` must already be installed before running the restore command.
+
+## Shared Pi and Codex workflows
+
+Make Pi's compatible skills and prompts available to Codex's user-wide skill
+discovery directory with:
+
+```bash
+bin/link-pi-skills
+```
+
+The command is safe to rerun. It keeps Pi as the source of truth, exposes Pi
+prompts as explicit-only Codex skills, skips invalid files and name conflicts,
+and never replaces an existing Codex skill.

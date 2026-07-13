@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(dirname "$script_dir")"
+
+pi_skills_dir="${PI_SKILLS_DIR:-$HOME/.pi/agent/skills}"
+pi_prompt_skills_dir="${PI_PROMPT_SKILLS_DIR:-$repo_root/.pi/codex-prompt-skills}"
+codex_skills_dir="${CODEX_SKILLS_DIR:-$HOME/.agents/skills}"
+
+mkdir -p "$pi_skills_dir" "$codex_skills_dir"
+
+frontmatter_value() {
+  local skill_file="$1"
+  local field="$2"
+
+  awk -v field="$field" '
+    NR == 1 && $0 == "---" { in_frontmatter = 1; next }
+    in_frontmatter && $0 == "---" { exit }
+    in_frontmatter && index($0, field ":") == 1 {
+      value = substr($0, length(field) + 2)
+      sub(/^[[:space:]]+/, "", value)
+      print value
+      exit
+    }
+  ' "$skill_file"
+}
+
+declare -A installed_names=()
+
+if [[ -f "$codex_skills_dir/SKILL.md" ]]; then
+  root_name="$(frontmatter_value "$codex_skills_dir/SKILL.md" name)"
+  if [[ -n "$root_name" ]]; then
+    installed_names["$root_name"]="$codex_skills_dir"
+  fi
+fi
+
+shopt -s nullglob
+for skill_dir in "$codex_skills_dir"/*; do
+  [[ -f "$skill_dir/SKILL.md" ]] || continue
+  skill_name="$(frontmatter_value "$skill_dir/SKILL.md" name)"
+  if [[ -n "$skill_name" ]]; then
+    installed_names["$skill_name"]="$skill_dir"
+  fi
+done
+
+skills_linked=0
+skills_skipped=0
+
+for skill_dir in "$pi_skills_dir"/*; do
+  [[ -d "$skill_dir" && -f "$skill_dir/SKILL.md" ]] || continue
+
+  directory_name="$(basename "$skill_dir")"
+  target="$codex_skills_dir/$directory_name"
+  skill_name="$(frontmatter_value "$skill_dir/SKILL.md" name)"
+  description="$(frontmatter_value "$skill_dir/SKILL.md" description)"
+
+  if [[ -z "$skill_name" || -z "$description" ]]; then
+    echo "Skipping $directory_name: Codex requires name and description in SKILL.md frontmatter." >&2
+    ((skills_skipped += 1))
+    continue
+  fi
+
+  if [[ -L "$target" ]] && [[ "$(readlink -f "$target")" == "$(readlink -f "$skill_dir")" ]]; then
+    echo "Already linked: $directory_name"
+    installed_names["$skill_name"]="$target"
+    continue
+  fi
+
+  if [[ -e "$target" || -L "$target" ]]; then
+    echo "Skipping $directory_name: $target already exists." >&2
+    ((skills_skipped += 1))
+    continue
+  fi
+
+  if [[ -n "${installed_names[$skill_name]:-}" ]]; then
+    echo "Skipping $directory_name: skill name '$skill_name' already exists at ${installed_names[$skill_name]}." >&2
+    ((skills_skipped += 1))
+    continue
+  fi
+
+  ln -s "$skill_dir" "$target"
+  installed_names["$skill_name"]="$target"
+  echo "Linked: $directory_name"
+  ((skills_linked += 1))
+done
+
+prompts_linked=0
+prompts_skipped=0
+
+for prompt_skill_dir in "$pi_prompt_skills_dir"/*; do
+  [[ -d "$prompt_skill_dir" && -f "$prompt_skill_dir/SKILL.md" ]] || continue
+
+  prompt_name="$(frontmatter_value "$prompt_skill_dir/SKILL.md" name)"
+  description="$(frontmatter_value "$prompt_skill_dir/SKILL.md" description)"
+  directory_name="$(basename "$prompt_skill_dir")"
+  target="$codex_skills_dir/pi-prompt-$directory_name"
+
+  if [[ -z "$prompt_name" || -z "$description" ]]; then
+    echo "Skipping prompt $directory_name: Codex requires name and description in frontmatter." >&2
+    ((prompts_skipped += 1))
+    continue
+  fi
+
+  if [[ -L "$target" ]] && [[ "$(readlink -f "$target")" == "$(readlink -f "$prompt_skill_dir")" ]]; then
+    echo "Already linked prompt: $directory_name"
+    installed_names["$prompt_name"]="$target"
+    continue
+  fi
+
+  if [[ -e "$target" || -L "$target" ]]; then
+    echo "Skipping prompt $directory_name: $target already exists." >&2
+    ((prompts_skipped += 1))
+    continue
+  fi
+
+  if [[ -n "${installed_names[$prompt_name]:-}" ]]; then
+    echo "Skipping prompt $directory_name: skill name '$prompt_name' already exists at ${installed_names[$prompt_name]}." >&2
+    ((prompts_skipped += 1))
+    continue
+  fi
+
+  ln -s "$prompt_skill_dir" "$target"
+  installed_names["$prompt_name"]="$target"
+  echo "Linked prompt: $directory_name"
+  ((prompts_linked += 1))
+done
+
+echo "Pi skills available to Codex: $skills_linked linked, $skills_skipped skipped."
+echo "Pi prompts available to Codex: $prompts_linked linked, $prompts_skipped skipped."
