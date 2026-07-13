@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
-echo "installing cliphist"
-yay -S --noconfirm cliphist
+echo "Installing cliphist"
+yay -S --needed --noconfirm cliphist

@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
-echo "installing httpie"
-yay -S --noconfirm httpie
+echo "Installing httpie"
+yay -S --needed --noconfirm httpie

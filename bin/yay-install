@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: yay-install [--no-confirm] PACKAGE [PACKAGE ...]
+
+Installs packages with yay and records each package in this dotfiles repo so it
+can be restored later by running ./install.sh.
+EOF
+}
+
+confirm_each=true
+declare -a requested_packages=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --no-confirm)
+      confirm_each=false
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      requested_packages+=("$@")
+      break
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      requested_packages+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [[ ${#requested_packages[@]} -eq 0 ]]; then
+  usage >&2
+  exit 1
+fi
+
+script_path="$(readlink -f -- "${BASH_SOURCE[0]}")"
+repo_root="$(cd -- "$(dirname -- "${script_path}")/.." && pwd)"
+install_dir="${repo_root}/install"
+
+declare -a packages_to_install=()
+declare -a installers_to_create=()
+declare -A seen_packages=()
+
+for package in "${requested_packages[@]}"; do
+  if [[ "${package}" == -* || ! "${package}" =~ ^[a-z0-9@._+-]+$ ]]; then
+    echo "Invalid package name: ${package}" >&2
+    exit 1
+  fi
+
+  if [[ -n "${seen_packages[${package}]:-}" ]]; then
+    echo "${package} was specified more than once; skipping duplicate."
+    continue
+  fi
+  seen_packages["${package}"]=1
+
+  installer="${install_dir}/install-${package}"
+
+  if [[ -e "${installer}" ]]; then
+    if grep -Fqx "yay -S --needed --noconfirm ${package}" "${installer}"; then
+      echo "${package} is already recorded in ${installer}."
+      continue
+    fi
+
+    echo "Refusing to overwrite existing installer: ${installer}" >&2
+    exit 1
+  fi
+
+  packages_to_install+=("${package}")
+  installers_to_create+=("${installer}")
+done
+
+if [[ ${#packages_to_install[@]} -eq 0 ]]; then
+  exit 0
+fi
+
+for index in "${!packages_to_install[@]}"; do
+  package="${packages_to_install[index]}"
+  installer="${installers_to_create[index]}"
+
+  if [[ "${confirm_each}" == true ]]; then
+    if ! read -r -p "Install and record ${package}? [y/N] " confirmation; then
+      confirmation=""
+    fi
+  else
+    confirmation="yes"
+  fi
+
+  case "${confirmation}" in
+    y|Y|yes|YES|Yes)
+      ;;
+    *)
+      echo "Skipping ${package}."
+      continue
+      ;;
+  esac
+
+  yay -S --needed --noconfirm "${package}"
+
+  cat > "${installer}" <<EOF
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+echo "Installing ${package}"
+yay -S --needed --noconfirm ${package}
+EOF
+  chmod +x "${installer}"
+  echo "Recorded ${package} in ${installer}."
+done

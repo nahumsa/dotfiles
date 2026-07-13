@@ -4,5 +4,4 @@
 set -eEo pipefail
 
 # Run all installers
-"./install/all.sh"
-
+"./install/all.sh" "$@"
