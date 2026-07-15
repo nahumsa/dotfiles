@@ -1,0 +1,7 @@
+#!/bin/bash
+
+set -e
+
+echo "installing poetry"
+curl -sSL https://install.python-poetry.org | python3 - --version 1.8.3
+
