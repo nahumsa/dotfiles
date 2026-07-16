@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+echo "Installing python-poetry"
+yay -S --needed --noconfirm python-poetry
